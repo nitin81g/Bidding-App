@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+:root {
+  /* Primary */
+  --primary: #008cff;
+  --primary-dark: #065af3;
+  --primary-light: #53b2fe;
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(93deg, #53b2fe, #065af3);
+  --gradient-hero: linear-gradient(to bottom, #051322, #15457c);
+  --gradient-accent: linear-gradient(256deg, #ff684a, #ff4959);
+
+  /* Backgrounds */
+  --background: #ffffff;
+  --background-page: #f2f2f2;
+  --background-card: #ffffff;
+
+  /* Text */
+  --foreground: #4a4a4a;
+  --foreground-heading: #000000;
+  --foreground-muted: #9b9b9b;
+  --foreground-inverse: #ffffff;
+
+  /* Accents */
+  --accent-orange: #ff664b;
+  --accent-green: #ace143;
+  --accent-teal: #219393;
+  --accent-red: #eb2026;
+
+  /* Borders */
+  --border: #e7e7e7;
+  --border-light: #f0f0f0;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-page: var(--background-page);
+  --color-background-card: var(--background-card);
+  --color-foreground: var(--foreground);
+  --color-foreground-heading: var(--foreground-heading);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-inverse: var(--foreground-inverse);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-accent-orange: var(--accent-orange);
+  --color-accent-green: var(--accent-green);
+  --color-accent-teal: var(--accent-teal);
+  --color-accent-red: var(--accent-red);
+  --color-border: var(--border);
+  --color-border-light: var(--border-light);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0d1b2a;
+    --background-page: #051322;
+    --background-card: #122a42;
+    --foreground: #d4dde8;
+    --foreground-heading: #ffffff;
+    --foreground-muted: #7a8fa3;
+    --border: #1e3a54;
+    --border-light: #163046;
+  }
+}
+
+body {
+  background: var(--background-page);
+  color: var(--foreground);
+  font-family: var(--font-sans, Arial, Helvetica, sans-serif);
+}
+
+/* Utility classes for gradients (not possible via Tailwind alone) */
+.bg-gradient-primary {
+  background: var(--gradient-primary);
+}
+
+.bg-gradient-hero {
+  background: var(--gradient-hero);
+}
+
+.bg-gradient-accent {
+  background: var(--gradient-accent);
+}
