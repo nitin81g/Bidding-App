@@ -98,6 +98,11 @@ export async function loginWithGoogle(email: string, name: string): Promise<Goog
     return { success: false, error: "Failed to create account." };
   }
 
+  // If email confirmation is enabled, sign in immediately
+  if (!signUpData.session) {
+    await supabase.auth.signInWithPassword({ email, password: email });
+  }
+
   // Profile is auto-created by the handle_new_user trigger.
   // Update profile with name if the trigger didn't capture it.
   await supabase
@@ -432,8 +437,24 @@ export async function signup(data: SignupData): Promise<SignupResult> {
     return { success: false, errors: { general: "Failed to create account." } };
   }
 
+  // If email confirmation is enabled, signUp won't create a session.
+  // Sign in immediately to establish a session for this demo app.
+  if (!signUpData.session) {
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: email,
+    });
+    if (signInError) {
+      return {
+        success: false,
+        errors: { general: "Account created but could not sign in: " + signInError.message },
+      };
+    }
+  }
+
   // Update profile with mobile and auth method
-  await supabase
+  // (handle_new_user trigger creates the profile, but we need to add mobile etc.)
+  const { error: updateError } = await supabase
     .from("profiles")
     .update({
       first_name: data.first_name.trim(),
@@ -442,6 +463,10 @@ export async function signup(data: SignupData): Promise<SignupResult> {
       auth_method: data.email.trim() ? "google" : "mobile",
     })
     .eq("id", signUpData.user.id);
+
+  if (updateError) {
+    console.warn("Profile update after signup failed:", updateError.message);
+  }
 
   const user = await getCurrentUser();
   return { success: true, user: user || undefined };

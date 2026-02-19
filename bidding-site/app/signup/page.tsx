@@ -73,6 +73,12 @@ export default function SignupPage() {
             </div>
           )}
 
+          {errors.general && (
+            <div className="mt-4 rounded-lg border border-accent-red/30 bg-accent-red/5 px-4 py-3 text-sm font-medium text-accent-red">
+              {errors.general}
+            </div>
+          )}
+
           <div className="mt-6 space-y-4">
             {/* Name fields */}
             <div className="grid grid-cols-2 gap-3">
