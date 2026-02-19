@@ -408,9 +408,9 @@ $$;
 
 
 -- --------------------------
--- 4.2 Activate Listing (with fee deduction)
+-- 4.2 Activate Listing (no fee)
 -- --------------------------
--- Atomically deducts 100-point listing fee and sets status to ACTIVE.
+-- Sets a draft listing to ACTIVE status.
 
 CREATE OR REPLACE FUNCTION public.activate_listing(
   p_listing_id UUID,
@@ -422,8 +422,6 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_listing public.listings%ROWTYPE;
-  v_balance NUMERIC(12,2);
-  v_fee     NUMERIC(12,2) := 100;
 BEGIN
   -- Lock listing
   SELECT * INTO v_listing
@@ -440,22 +438,6 @@ BEGIN
   IF v_listing.status != 'DRAFT' THEN
     RETURN jsonb_build_object('success', false, 'error', 'Only draft listings can be activated.');
   END IF;
-
-  -- Check wallet balance
-  SELECT balance INTO v_balance
-  FROM public.wallets WHERE user_id = p_user_id FOR UPDATE;
-
-  IF v_balance IS NULL OR v_balance < v_fee THEN
-    RETURN jsonb_build_object('success', false, 'error',
-      format('Listing fee is %s points. Your balance is %s.', v_fee, COALESCE(v_balance, 0)));
-  END IF;
-
-  -- Deduct fee
-  UPDATE public.wallets SET balance = balance - v_fee WHERE user_id = p_user_id;
-
-  -- Record transaction
-  INSERT INTO public.transactions (user_id, type, amount, description, listing_id)
-  VALUES (p_user_id, 'LISTING_FEE', -v_fee, format('Listing fee: "%s"', v_listing.title), p_listing_id);
 
   -- Activate listing
   UPDATE public.listings SET status = 'ACTIVE' WHERE id = p_listing_id;
@@ -733,6 +715,11 @@ CREATE POLICY "Notifications: self update"
   ON public.notifications FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
+
+-- Authenticated users can create notifications (for bid/outbid alerts)
+CREATE POLICY "Notifications: authenticated insert"
+  ON public.notifications FOR INSERT
+  WITH CHECK (auth.uid() IS NOT NULL);
 
 -- --------------------------
 -- AUDIT LOGS

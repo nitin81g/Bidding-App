@@ -7,7 +7,7 @@ import { saveListing, generateId, getCurrentUserId } from "../lib/listings";
 import NotificationBell from "../components/NotificationBell";
 import AuthModal from "../components/AuthModal";
 import { getCurrentUser, logout, type User } from "../lib/auth";
-import { getBalance, debitPoints, hasEnoughPoints } from "../lib/wallet";
+import { getBalance } from "../lib/wallet";
 
 type Condition = "NEW" | "USED" | "";
 
@@ -197,36 +197,16 @@ export default function ListItemPage() {
       return;
     }
 
-    // Check listing fee (100 bid points)
-    const currentUserId = await getCurrentUserId();
-    if (!(await hasEnoughPoints(currentUserId, 100))) {
-      const bal = await getBalance(currentUserId);
-      setErrors({
-        listing_fee: `Listing an item costs 100 bid points. Your balance is ${bal} points. Please top up your wallet first.`,
-      });
-      return;
-    }
-
-    // Save listing FIRST (before deducting points) so that if storage
-    // fails, points are not lost.
     try {
       await persistListing("ACTIVE");
     } catch {
       setErrors({
-        listing_fee:
-          "Failed to save listing. Your images may be too large for browser storage. Try using fewer or smaller images.",
+        general:
+          "Failed to save listing. Please try again.",
       });
       return;
     }
 
-    // Deduct points only after listing is saved successfully
-    const debitResult = await debitPoints(currentUserId, 100, `Listing fee: "${form.title}"`);
-    if (!debitResult.success) {
-      setErrors({ listing_fee: debitResult.error || "Could not deduct listing fee." });
-      return;
-    }
-
-    setWalletBalance(await getBalance(currentUserId));
     setSavedStatus("ACTIVE");
     setShowActivatedPopup(true);
   }
@@ -576,34 +556,19 @@ export default function ListItemPage() {
             )}
           </div>
 
-          {/* Listing Fee Notice */}
-          <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-5 py-3 text-sm text-foreground">
-            <span className="font-semibold">Listing Fee:</span> 100 bid points will be deducted when you activate this listing.
-            Your balance:{" "}
-            <span className="font-bold text-primary">{walletBalance.toLocaleString("en-IN")} pts</span>
-            {walletBalance < 100 && (
-              <Link href="/wallet" className="ml-2 font-semibold text-primary hover:underline">
-                Top up now
-              </Link>
-            )}
-          </div>
-
-          {/* Listing fee error */}
-          {errors.listing_fee && (
+          {/* General error */}
+          {errors.general && (
             <div className="mb-6 rounded-lg border border-accent-red/30 bg-accent-red/5 px-5 py-3">
-              <p className="text-sm font-semibold text-accent-red">{errors.listing_fee}</p>
-              <Link href="/wallet" className="mt-1 inline-block text-sm font-semibold text-primary hover:underline">
-                Go to Wallet
-              </Link>
+              <p className="text-sm font-semibold text-accent-red">{errors.general}</p>
             </div>
           )}
 
           {/* Validation summary */}
-          {Object.keys(errors).filter(k => k !== "listing_fee").length > 0 && (
+          {Object.keys(errors).filter(k => k !== "general").length > 0 && (
             <div className="mb-6 rounded-lg border border-accent-red/30 bg-accent-red/5 px-5 py-3">
               <p className="text-sm font-semibold text-accent-red">
-                Please fix {Object.keys(errors).filter(k => k !== "listing_fee").length} error
-                {Object.keys(errors).filter(k => k !== "listing_fee").length > 1 ? "s" : ""} before activating
+                Please fix {Object.keys(errors).filter(k => k !== "general").length} error
+                {Object.keys(errors).filter(k => k !== "general").length > 1 ? "s" : ""} before activating
               </p>
             </div>
           )}
