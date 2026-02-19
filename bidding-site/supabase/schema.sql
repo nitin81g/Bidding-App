@@ -546,6 +546,94 @@ END;
 $$;
 
 
+-- --------------------------
+-- 4.4 Credit Wallet (top-up)
+-- --------------------------
+-- Atomically adds points to a user's wallet and records the transaction.
+
+CREATE OR REPLACE FUNCTION public.credit_wallet(
+  p_user_id    UUID,
+  p_amount     NUMERIC(12,2),
+  p_description TEXT DEFAULT 'Top-up'
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF p_amount <= 0 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Amount must be positive.');
+  END IF;
+
+  -- Atomically increment balance
+  UPDATE public.wallets
+  SET balance = balance + p_amount
+  WHERE user_id = p_user_id;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Wallet not found.');
+  END IF;
+
+  -- Record transaction
+  INSERT INTO public.transactions (user_id, type, amount, description)
+  VALUES (p_user_id, 'TOP_UP', p_amount, p_description);
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+-- --------------------------
+-- 4.5 Debit Wallet
+-- --------------------------
+-- Atomically deducts points from a user's wallet and records the transaction.
+
+CREATE OR REPLACE FUNCTION public.debit_wallet(
+  p_user_id     UUID,
+  p_amount      NUMERIC(12,2),
+  p_description TEXT,
+  p_type        TEXT DEFAULT 'BID_DEDUCTION'
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_balance NUMERIC(12,2);
+BEGIN
+  IF p_amount <= 0 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Amount must be positive.');
+  END IF;
+
+  -- Lock wallet row and check balance
+  SELECT balance INTO v_balance
+  FROM public.wallets
+  WHERE user_id = p_user_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Wallet not found.');
+  END IF;
+
+  IF v_balance < p_amount THEN
+    RETURN jsonb_build_object('success', false, 'error',
+      format('Insufficient bid points. You need %s points but have %s.', p_amount, v_balance));
+  END IF;
+
+  -- Deduct balance
+  UPDATE public.wallets
+  SET balance = balance - p_amount
+  WHERE user_id = p_user_id;
+
+  -- Record transaction
+  INSERT INTO public.transactions (user_id, type, amount, description)
+  VALUES (p_user_id, p_type::public.transaction_type, -p_amount, p_description);
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
 -- ************************************************************
 -- 5. ROW LEVEL SECURITY (RLS)
 -- ************************************************************

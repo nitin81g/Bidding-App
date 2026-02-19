@@ -37,20 +37,18 @@ export async function creditPoints(
 ): Promise<void> {
   const supabase = createClient();
 
-  // Update wallet balance
-  const currentBalance = await getBalance(userId);
-  await supabase
-    .from("wallets")
-    .update({ balance: currentBalance + amount })
-    .eq("user_id", userId);
-
-  // Record transaction
-  await supabase.from("transactions").insert({
-    user_id: userId,
-    type: "TOP_UP",
-    amount: amount,
-    description,
+  // Atomic credit via SECURITY DEFINER RPC
+  const { data, error } = await supabase.rpc("credit_wallet", {
+    p_user_id: userId,
+    p_amount: amount,
+    p_description: description,
   });
+
+  if (error) {
+    console.error("creditPoints RPC error:", error.message);
+  } else if (data && !data.success) {
+    console.error("creditPoints failed:", data.error);
+  }
 }
 
 export async function debitPoints(
@@ -60,28 +58,23 @@ export async function debitPoints(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createClient();
 
-  const balance = await getBalance(userId);
-  if (balance < amount) {
-    return {
-      success: false,
-      error: `Insufficient bid points. You need ${amount} points but have ${balance}.`,
-    };
+  const type = description.startsWith("Listing fee") ? "LISTING_FEE" : "BID_DEDUCTION";
+
+  // Atomic debit via SECURITY DEFINER RPC
+  const { data, error } = await supabase.rpc("debit_wallet", {
+    p_user_id: userId,
+    p_amount: amount,
+    p_description: description,
+    p_type: type,
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
   }
 
-  // Update wallet balance
-  await supabase
-    .from("wallets")
-    .update({ balance: balance - amount })
-    .eq("user_id", userId);
-
-  // Record transaction
-  const type = description.startsWith("Listing fee") ? "LISTING_FEE" : "BID_DEDUCTION";
-  await supabase.from("transactions").insert({
-    user_id: userId,
-    type,
-    amount: -amount,
-    description,
-  });
+  if (data && !data.success) {
+    return { success: false, error: data.error };
+  }
 
   return { success: true };
 }
