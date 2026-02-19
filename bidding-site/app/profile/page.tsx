@@ -24,23 +24,27 @@ export default function ProfilePage() {
   const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
-    const currentUser = getCurrentUser();
-    setUser(currentUser);
-    setWalletBalance(getBalance(getCurrentUserId()));
-    if (currentUser) {
-      setFirstName(currentUser.first_name);
-      setLastName(currentUser.last_name);
-      setEmail(currentUser.email);
-      setMobile(currentUser.mobile);
+    async function load() {
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+      const uid = await getCurrentUserId();
+      setWalletBalance(await getBalance(uid));
+      if (currentUser) {
+        setFirstName(currentUser.first_name);
+        setLastName(currentUser.last_name);
+        setEmail(currentUser.email);
+        setMobile(currentUser.mobile);
+      }
     }
+    load();
   }, []);
 
-  function handleSave() {
+  async function handleSave() {
     if (!user) return;
     setErrors({});
     setSuccessMessage("");
 
-    const result = updateProfile(user.id, {
+    const result = await updateProfile(user.id, {
       first_name: firstName,
       last_name: lastName,
       email,
@@ -110,8 +114,8 @@ export default function ProfilePage() {
                   {user.first_name} {user.last_name}
                 </span>
                 <button
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
+                    await logout();
                     setUser(null);
                   }}
                   className="rounded-md border border-white/20 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10"
@@ -134,8 +138,8 @@ export default function ProfilePage() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onLoginSuccess={() => {
-          const u = getCurrentUser();
+        onLoginSuccess={async () => {
+          const u = await getCurrentUser();
           setUser(u);
           if (u) {
             setFirstName(u.first_name);

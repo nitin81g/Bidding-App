@@ -1,3 +1,5 @@
+import { createClient } from "./supabase/client";
+
 export interface WalletEntry {
   user_id: string;
   balance: number;
@@ -6,98 +8,59 @@ export interface WalletEntry {
 export interface Transaction {
   id: string;
   user_id: string;
-  type: "TOP_UP" | "LISTING_FEE" | "BID_DEDUCTION";
+  type: "TOP_UP" | "LISTING_FEE" | "BID_DEDUCTION" | "AUCTION_WIN_DEDUCTION" | "REFUND";
   amount: number;
   description: string;
   created_at: string;
 }
 
-const WALLETS_KEY = "bidhub_wallets";
-const TRANSACTIONS_KEY = "bidhub_transactions";
-
-function getAllWallets(): WalletEntry[] {
-  if (typeof window === "undefined") return [];
-  const raw = localStorage.getItem(WALLETS_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
+export async function getBalance(userId: string): Promise<number> {
+  if (!userId) return 0;
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("wallets")
+    .select("balance")
+    .eq("user_id", userId)
+    .single();
+  return data ? Number(data.balance) : 0;
 }
 
-function saveAllWallets(wallets: WalletEntry[]): void {
-  localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets));
+export async function hasEnoughPoints(userId: string, amount: number): Promise<boolean> {
+  const balance = await getBalance(userId);
+  return balance >= amount;
 }
 
-function getAllTransactions(): Transaction[] {
-  if (typeof window === "undefined") return [];
-  const raw = localStorage.getItem(TRANSACTIONS_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-function saveAllTransactions(transactions: Transaction[]): void {
-  localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(transactions));
-}
-
-function addTransaction(
+export async function creditPoints(
   userId: string,
-  type: Transaction["type"],
   amount: number,
   description: string
-): void {
-  const transactions = getAllTransactions();
-  transactions.push({
-    id: crypto.randomUUID(),
+): Promise<void> {
+  const supabase = createClient();
+
+  // Update wallet balance
+  const currentBalance = await getBalance(userId);
+  await supabase
+    .from("wallets")
+    .update({ balance: currentBalance + amount })
+    .eq("user_id", userId);
+
+  // Record transaction
+  await supabase.from("transactions").insert({
     user_id: userId,
-    type,
-    amount,
+    type: "TOP_UP",
+    amount: amount,
     description,
-    created_at: new Date().toISOString(),
   });
-  saveAllTransactions(transactions);
 }
 
-export function getBalance(userId: string): number {
-  const wallets = getAllWallets();
-  const wallet = wallets.find((w) => w.user_id === userId);
-  return wallet ? wallet.balance : 0;
-}
-
-export function hasEnoughPoints(userId: string, amount: number): boolean {
-  return getBalance(userId) >= amount;
-}
-
-export function creditPoints(
+export async function debitPoints(
   userId: string,
   amount: number,
   description: string
-): void {
-  const wallets = getAllWallets();
-  const existing = wallets.find((w) => w.user_id === userId);
-  if (existing) {
-    existing.balance += amount;
-  } else {
-    wallets.push({ user_id: userId, balance: amount });
-  }
-  saveAllWallets(wallets);
-  addTransaction(userId, "TOP_UP", amount, description);
-}
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
 
-export function debitPoints(
-  userId: string,
-  amount: number,
-  description: string
-): { success: boolean; error?: string } {
-  const wallets = getAllWallets();
-  const existing = wallets.find((w) => w.user_id === userId);
-  const balance = existing ? existing.balance : 0;
-
+  const balance = await getBalance(userId);
   if (balance < amount) {
     return {
       success: false,
@@ -105,26 +68,35 @@ export function debitPoints(
     };
   }
 
-  if (existing) {
-    existing.balance -= amount;
-  } else {
-    wallets.push({ user_id: userId, balance: -amount });
-  }
-  saveAllWallets(wallets);
+  // Update wallet balance
+  await supabase
+    .from("wallets")
+    .update({ balance: balance - amount })
+    .eq("user_id", userId);
 
-  const type: Transaction["type"] = description.startsWith("Listing fee")
-    ? "LISTING_FEE"
-    : "BID_DEDUCTION";
-  addTransaction(userId, type, -amount, description);
+  // Record transaction
+  const type = description.startsWith("Listing fee") ? "LISTING_FEE" : "BID_DEDUCTION";
+  await supabase.from("transactions").insert({
+    user_id: userId,
+    type,
+    amount: -amount,
+    description,
+  });
 
   return { success: true };
 }
 
-export function getTransactions(userId: string): Transaction[] {
-  return getAllTransactions()
-    .filter((t) => t.user_id === userId)
-    .sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
+export async function getTransactions(userId: string): Promise<Transaction[]> {
+  if (!userId) return [];
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  return (data || []).map((t) => ({
+    ...t,
+    amount: Number(t.amount),
+  }));
 }

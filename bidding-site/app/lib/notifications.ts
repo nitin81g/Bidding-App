@@ -1,3 +1,5 @@
+import { createClient } from "./supabase/client";
+
 export type NotificationType =
   | "BID_PLACED"
   | "HIGHEST_BIDDER"
@@ -19,84 +21,74 @@ export interface AppNotification {
   created_at: string;
 }
 
-const STORAGE_KEY = "bidhub_notifications";
+export async function getNotificationsForUser(userId: string): Promise<AppNotification[]> {
+  if (!userId) return [];
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
 
-function getAllNotifications(): AppNotification[] {
-  if (typeof window === "undefined") return [];
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
+  return (data || []) as AppNotification[];
 }
 
-function saveAllNotifications(notifications: AppNotification[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+export async function getUnreadCount(userId: string): Promise<number> {
+  if (!userId) return 0;
+  const supabase = createClient();
+  const { count } = await supabase
+    .from("notifications")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("read", false);
+
+  return count || 0;
 }
 
-export function getNotificationsForUser(userId: string): AppNotification[] {
-  return getAllNotifications()
-    .filter((n) => n.user_id === userId)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+export async function markAsRead(notificationId: string): Promise<void> {
+  const supabase = createClient();
+  await supabase
+    .from("notifications")
+    .update({ read: true })
+    .eq("id", notificationId);
 }
 
-export function getUnreadCount(userId: string): number {
-  return getAllNotifications().filter((n) => n.user_id === userId && !n.read).length;
+export async function markAllAsRead(userId: string): Promise<void> {
+  const supabase = createClient();
+  await supabase
+    .from("notifications")
+    .update({ read: true })
+    .eq("user_id", userId)
+    .eq("read", false);
 }
 
-export function markAsRead(notificationId: string): void {
-  const all = getAllNotifications();
-  const idx = all.findIndex((n) => n.id === notificationId);
-  if (idx >= 0) {
-    all[idx].read = true;
-    saveAllNotifications(all);
-  }
-}
-
-export function markAllAsRead(userId: string): void {
-  const all = getAllNotifications();
-  let changed = false;
-  for (const n of all) {
-    if (n.user_id === userId && !n.read) {
-      n.read = true;
-      changed = true;
-    }
-  }
-  if (changed) saveAllNotifications(all);
-}
-
-export function addNotification(
+export async function addNotification(
   userId: string,
   type: NotificationType,
   title: string,
   message: string,
   listingId: string
-): void {
-  const all = getAllNotifications();
-  all.push({
-    id: crypto.randomUUID(),
+): Promise<void> {
+  const supabase = createClient();
+  await supabase.from("notifications").insert({
     user_id: userId,
     type,
     title,
     message,
     listing_id: listingId,
     read: false,
-    created_at: new Date().toISOString(),
   });
-  saveAllNotifications(all);
 }
 
 // --- Notification trigger helpers ---
 
-export function notifyBidPlaced(
+export async function notifyBidPlaced(
   bidderId: string,
   listingTitle: string,
   listingId: string,
   amount: string
-): void {
-  addNotification(
+): Promise<void> {
+  await addNotification(
     bidderId,
     "BID_PLACED",
     "Bid Placed",
@@ -105,12 +97,12 @@ export function notifyBidPlaced(
   );
 }
 
-export function notifyHighestBidder(
+export async function notifyHighestBidder(
   bidderId: string,
   listingTitle: string,
   listingId: string
-): void {
-  addNotification(
+): Promise<void> {
+  await addNotification(
     bidderId,
     "HIGHEST_BIDDER",
     "You Are the Highest Bidder",
@@ -119,13 +111,13 @@ export function notifyHighestBidder(
   );
 }
 
-export function notifyOutbid(
+export async function notifyOutbid(
   previousBidderId: string,
   listingTitle: string,
   listingId: string,
   newAmount: string
-): void {
-  addNotification(
+): Promise<void> {
+  await addNotification(
     previousBidderId,
     "OUTBID",
     "You Have Been Outbid",
@@ -134,12 +126,12 @@ export function notifyOutbid(
   );
 }
 
-export function notifyAuctionEndingSoon(
+export async function notifyAuctionEndingSoon(
   bidderId: string,
   listingTitle: string,
   listingId: string
-): void {
-  addNotification(
+): Promise<void> {
+  await addNotification(
     bidderId,
     "AUCTION_ENDING_SOON",
     "Auction Ending Soon",
@@ -148,13 +140,13 @@ export function notifyAuctionEndingSoon(
   );
 }
 
-export function notifyAuctionWon(
+export async function notifyAuctionWon(
   winnerId: string,
   listingTitle: string,
   listingId: string,
   amount: string
-): void {
-  addNotification(
+): Promise<void> {
+  await addNotification(
     winnerId,
     "AUCTION_WON",
     "Auction Won!",
@@ -163,12 +155,12 @@ export function notifyAuctionWon(
   );
 }
 
-export function notifyAuctionLost(
+export async function notifyAuctionLost(
   bidderId: string,
   listingTitle: string,
   listingId: string
-): void {
-  addNotification(
+): Promise<void> {
+  await addNotification(
     bidderId,
     "AUCTION_LOST",
     "Auction Ended",
@@ -177,14 +169,14 @@ export function notifyAuctionLost(
   );
 }
 
-export function notifyOrderConfirmed(
+export async function notifyOrderConfirmed(
   winnerId: string,
   listingTitle: string,
   listingId: string,
   amount: string,
   email: string
-): void {
-  addNotification(
+): Promise<void> {
+  await addNotification(
     winnerId,
     "ORDER_CONFIRMED",
     "Order Confirmed!",
@@ -193,14 +185,14 @@ export function notifyOrderConfirmed(
   );
 }
 
-export function notifyNewBidReceived(
+export async function notifyNewBidReceived(
   sellerId: string,
   listingTitle: string,
   listingId: string,
   amount: string,
   bidderLabel: string
-): void {
-  addNotification(
+): Promise<void> {
+  await addNotification(
     sellerId,
     "NEW_BID_RECEIVED",
     "New Bid Received",
@@ -209,8 +201,8 @@ export function notifyNewBidReceived(
   );
 }
 
-// --- Lifecycle check keys (prevent duplicate time-based notifications) ---
-
+// Lifecycle dedup is handled server-side by pg_cron end_expired_auctions().
+// These are kept for the useAuctionLifecycle hook (client-side ending-soon only).
 const LIFECYCLE_KEY = "bidhub_lifecycle_sent";
 
 interface LifecycleSent {

@@ -50,15 +50,23 @@ export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [userId, setUserId] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const userId = typeof window !== "undefined" ? getCurrentUserId() : "";
+
+  useEffect(() => {
+    async function loadUserId() {
+      const id = await getCurrentUserId();
+      setUserId(id);
+    }
+    loadUserId();
+  }, []);
 
   // Refresh notifications periodically
   useEffect(() => {
-    function refresh() {
+    async function refresh() {
       if (!userId) return;
-      setNotifications(getNotificationsForUser(userId));
-      setUnreadCount(getUnreadCount(userId));
+      setNotifications(await getNotificationsForUser(userId));
+      setUnreadCount(await getUnreadCount(userId));
     }
     refresh();
     const interval = setInterval(refresh, 2000);
@@ -85,17 +93,17 @@ export default function NotificationBell() {
     setIsOpen((prev) => !prev);
   }
 
-  function handleMarkAllRead() {
+  async function handleMarkAllRead() {
     if (!userId) return;
-    markAllAsRead(userId);
-    setNotifications(getNotificationsForUser(userId));
+    await markAllAsRead(userId);
+    setNotifications(await getNotificationsForUser(userId));
     setUnreadCount(0);
   }
 
-  function handleNotificationClick(n: AppNotification) {
+  async function handleNotificationClick(n: AppNotification) {
     if (!n.read) {
-      markAsRead(n.id);
-      setNotifications(getNotificationsForUser(userId));
+      await markAsRead(n.id);
+      setNotifications(await getNotificationsForUser(userId));
       setUnreadCount((c) => Math.max(0, c - 1));
     }
     setIsOpen(false);

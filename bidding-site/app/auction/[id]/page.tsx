@@ -49,7 +49,7 @@ function formatTime(iso: string): string {
 export default function AuctionDetailPage() {
   const params = useParams();
   const listingId = params.id as string;
-  const userId = typeof window !== "undefined" ? getCurrentUserId() : "";
+  const [userId, setUserId] = useState("");
   useAuctionLifecycle();
 
   const [listing, setListing] = useState<Listing | null>(null);
@@ -65,14 +65,19 @@ export default function AuctionDetailPage() {
   const [walletBalance, setWalletBalance] = useState(0);
 
   useEffect(() => {
-    setUser(getCurrentUser());
-    setWalletBalance(getBalance(userId));
-  }, [userId]);
+    async function loadUser() {
+      const uid = await getCurrentUserId();
+      setUserId(uid);
+      setUser(await getCurrentUser());
+      setWalletBalance(await getBalance(uid));
+    }
+    loadUser();
+  }, []);
 
-  const refreshData = useCallback(() => {
-    const l = getListingById(listingId);
+  const refreshData = useCallback(async () => {
+    const l = await getListingById(listingId);
     setListing(l);
-    setBids(getBidsForListing(listingId));
+    setBids(await getBidsForListing(listingId));
   }, [listingId]);
 
   // Load data
@@ -122,7 +127,7 @@ export default function AuctionDetailPage() {
     setShowBidInput(true);
   }
 
-  function handleConfirmBid() {
+  async function handleConfirmBid() {
     setBidError("");
     setBidSuccess("");
 
@@ -134,7 +139,7 @@ export default function AuctionDetailPage() {
       return;
     }
 
-    const result = placeBid(listingId, userId, amount);
+    const result = await placeBid(listingId, userId, amount);
 
     if (!result.success) {
       setBidError(result.error || "Failed to place bid.");
@@ -145,8 +150,8 @@ export default function AuctionDetailPage() {
     setBidSuccess("Your bid has been placed.");
     setShowBidInput(false);
     setBidAmount("");
-    refreshData();
-    setWalletBalance(getBalance(userId));
+    await refreshData();
+    setWalletBalance(await getBalance(userId));
 
     setTimeout(() => setBidSuccess(""), 5000);
   }
@@ -181,8 +186,8 @@ export default function AuctionDetailPage() {
                   {user.first_name} {user.last_name}
                 </Link>
                 <button
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
+                    await logout();
                     setUser(null);
                   }}
                   className="rounded-md border border-white/20 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10"
@@ -205,7 +210,7 @@ export default function AuctionDetailPage() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onLoginSuccess={() => setUser(getCurrentUser())}
+        onLoginSuccess={async () => setUser(await getCurrentUser())}
       />
 
       <div className="mx-auto max-w-5xl px-6 py-8">

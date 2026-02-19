@@ -28,9 +28,9 @@ export default function SignupPage() {
     }
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     setErrors({});
-    const result = signup(form);
+    const result = await signup(form);
     if (!result.success) {
       setErrors(result.errors || {});
       return;

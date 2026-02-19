@@ -33,7 +33,10 @@ function PaymentForm() {
   const [cardName, setCardName] = useState("");
 
   useEffect(() => {
-    setUser(getCurrentUser());
+    async function load() {
+      setUser(await getCurrentUser());
+    }
+    load();
   }, []);
 
   if (!amount || amount < 1) {
@@ -47,7 +50,7 @@ function PaymentForm() {
     );
   }
 
-  function handlePay() {
+  async function handlePay() {
     setError("");
 
     if (method === "upi") {
@@ -76,9 +79,9 @@ function PaymentForm() {
     }
 
     setProcessing(true);
-    setTimeout(() => {
-      const userId = getCurrentUserId();
-      creditPoints(userId, amount, `Top-up via ${method === "upi" ? "UPI" : "Card"}`);
+    setTimeout(async () => {
+      const userId = await getCurrentUserId();
+      await creditPoints(userId, amount, `Top-up via ${method === "upi" ? "UPI" : "Card"}`);
       setProcessing(false);
       setSuccess(true);
     }, 1500);
@@ -113,8 +116,8 @@ function PaymentForm() {
                   {user.first_name} {user.last_name}
                 </Link>
                 <button
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
+                    await logout();
                     setUser(null);
                   }}
                   className="rounded-md border border-white/20 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10"
@@ -137,7 +140,7 @@ function PaymentForm() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onLoginSuccess={() => setUser(getCurrentUser())}
+        onLoginSuccess={async () => setUser(await getCurrentUser())}
       />
 
       <div className="mx-auto max-w-md px-6 py-10">

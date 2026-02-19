@@ -44,10 +44,13 @@ export default function WalletPage() {
   const [customAmount, setCustomAmount] = useState("");
 
   useEffect(() => {
-    setUser(getCurrentUser());
-    const userId = getCurrentUserId();
-    setBalance(getBalance(userId));
-    setTransactions(getTransactions(userId));
+    async function load() {
+      setUser(await getCurrentUser());
+      const userId = await getCurrentUserId();
+      setBalance(await getBalance(userId));
+      setTransactions(await getTransactions(userId));
+    }
+    load();
   }, []);
 
   function handleAddPoints() {
@@ -80,8 +83,8 @@ export default function WalletPage() {
                   {user.first_name} {user.last_name}
                 </Link>
                 <button
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
+                    await logout();
                     setUser(null);
                   }}
                   className="rounded-md border border-white/20 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10"
@@ -104,7 +107,7 @@ export default function WalletPage() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onLoginSuccess={() => setUser(getCurrentUser())}
+        onLoginSuccess={async () => setUser(await getCurrentUser())}
       />
 
       <div className="mx-auto max-w-3xl px-6 py-10">

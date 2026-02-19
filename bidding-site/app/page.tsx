@@ -28,15 +28,28 @@ function formatPrice(price: string): string {
 
 export default function Home() {
   const [activeListings, setActiveListings] = useState<Listing[]>([]);
+  const [bidCountMap, setBidCountMap] = useState<Map<string, number>>(new Map());
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   useAuctionLifecycle();
 
   useEffect(() => {
-    setActiveListings(getActiveListings());
-    setUser(getCurrentUser());
-    setWalletBalance(getBalance(getCurrentUserId()));
+    async function load() {
+      const listings = await getActiveListings();
+      setActiveListings(listings);
+      setUser(await getCurrentUser());
+      const uid = await getCurrentUserId();
+      setWalletBalance(await getBalance(uid));
+
+      const counts = new Map<string, number>();
+      for (const l of listings) {
+        const bids = await getBidsForListing(l.id);
+        counts.set(l.id, bids.length);
+      }
+      setBidCountMap(counts);
+    }
+    load();
   }, []);
 
   return (
@@ -75,8 +88,8 @@ export default function Home() {
                   {user.first_name} {user.last_name}
                 </Link>
                 <button
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
+                    await logout();
                     setUser(null);
                   }}
                   className="rounded-md border border-white/20 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10"
@@ -198,7 +211,7 @@ export default function Home() {
           ) : (
             <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {activeListings.map((item) => {
-                const bidCount = getBidsForListing(item.id).length;
+                const bidCount = bidCountMap.get(item.id) || 0;
                 const currentPrice = item.current_price || item.starting_price;
                 return (
                 <Link
@@ -378,7 +391,7 @@ export default function Home() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onLoginSuccess={() => setUser(getCurrentUser())}
+        onLoginSuccess={async () => setUser(await getCurrentUser())}
       />
     </div>
   );

@@ -15,7 +15,7 @@ type MobileStep = "enter_mobile" | "enter_otp";
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: () => void;
+  onLoginSuccess: () => void | Promise<void>;
 }
 
 export default function AuthModal({
@@ -74,7 +74,7 @@ export default function AuthModal({
 
   if (!isOpen) return null;
 
-  function handleGoogleLogin() {
+  async function handleGoogleLogin() {
     setError("");
     if (!googleEmail.trim()) {
       setError("Please enter your Gmail address.");
@@ -84,18 +84,18 @@ export default function AuthModal({
       setError("Please enter a valid email address.");
       return;
     }
-    const result = loginWithGoogle(googleEmail.trim(), googleName.trim() || googleEmail.split("@")[0]);
+    const result = await loginWithGoogle(googleEmail.trim(), googleName.trim() || googleEmail.split("@")[0]);
     if (!result.success) {
       setError(result.error || "Login failed.");
       return;
     }
-    onLoginSuccess();
+    await onLoginSuccess();
     onClose();
   }
 
-  function handleRequestOtp() {
+  async function handleRequestOtp() {
     setError("");
-    const result = requestOtp(mobile.trim());
+    const result = await requestOtp(mobile.trim());
     if (!result.success) {
       setError(result.error || "Failed to send OTP.");
       return;
@@ -104,18 +104,18 @@ export default function AuthModal({
     setDemoOtp(getDemoOtp());
   }
 
-  function handleVerifyOtp() {
+  async function handleVerifyOtp() {
     setError("");
     if (!otp.trim()) {
       setError("Please enter the OTP.");
       return;
     }
-    const result = verifyOtp(mobile.trim(), otp.trim());
+    const result = await verifyOtp(mobile.trim(), otp.trim());
     if (!result.success) {
       setError(result.error || "Verification failed.");
       return;
     }
-    onLoginSuccess();
+    await onLoginSuccess();
     onClose();
   }
 

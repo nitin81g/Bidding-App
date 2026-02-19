@@ -54,44 +54,56 @@ export default function CategoryPage() {
 
   const [liveListings, setLiveListings] = useState<Listing[]>([]);
   const [completedListings, setCompletedListings] = useState<Listing[]>([]);
+  const [bidCountMap, setBidCountMap] = useState<Map<string, number>>(new Map());
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   useAuctionLifecycle();
 
   useEffect(() => {
-    setUser(getCurrentUser());
-    setWalletBalance(getBalance(getCurrentUserId()));
+    async function load() {
+      setUser(await getCurrentUser());
+      const uid = await getCurrentUserId();
+      setWalletBalance(await getBalance(uid));
 
-    const all = getListings();
-    const now = Date.now();
-    const sixtyDaysAgo = now - 60 * 24 * 60 * 60 * 1000;
+      const all = await getListings();
+      const now = Date.now();
+      const sixtyDaysAgo = now - 60 * 24 * 60 * 60 * 1000;
 
-    const live: Listing[] = [];
-    const completed: Listing[] = [];
+      const live: Listing[] = [];
+      const completed: Listing[] = [];
 
-    for (const l of all) {
-      if (l.category !== categoryName) continue;
-      if (l.status === "DRAFT") continue;
+      for (const l of all) {
+        if (l.category !== categoryName) continue;
+        if (l.status === "DRAFT") continue;
 
-      const endTime = new Date(l.end_time).getTime();
-      if (l.status === "ACTIVE" && endTime > now) {
-        live.push(l);
-      } else if (endTime <= now && endTime > sixtyDaysAgo) {
-        completed.push(l);
+        const endTime = new Date(l.end_time).getTime();
+        if (l.status === "ACTIVE" && endTime > now) {
+          live.push(l);
+        } else if (endTime <= now && endTime > sixtyDaysAgo) {
+          completed.push(l);
+        }
       }
+
+      // Sort: newest first
+      live.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      completed.sort((a, b) => new Date(b.end_time).getTime() - new Date(a.end_time).getTime());
+
+      setLiveListings(live);
+      setCompletedListings(completed);
+
+      const counts = new Map<string, number>();
+      for (const l of [...live, ...completed]) {
+        const bids = await getBidsForListing(l.id);
+        counts.set(l.id, bids.length);
+      }
+      setBidCountMap(counts);
     }
-
-    // Sort: newest first
-    live.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    completed.sort((a, b) => new Date(b.end_time).getTime() - new Date(a.end_time).getTime());
-
-    setLiveListings(live);
-    setCompletedListings(completed);
+    load();
   }, [categoryName]);
 
   function renderCard(item: Listing, isCompleted: boolean) {
-    const bidCount = getBidsForListing(item.id).length;
+    const bidCount = bidCountMap.get(item.id) || 0;
     const currentPrice = item.current_price || item.starting_price;
     return (
       <Link
@@ -208,8 +220,8 @@ export default function CategoryPage() {
                   {user.first_name} {user.last_name}
                 </Link>
                 <button
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
+                    await logout();
                     setUser(null);
                   }}
                   className="rounded-md border border-white/20 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10"
@@ -232,7 +244,7 @@ export default function CategoryPage() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onLoginSuccess={() => setUser(getCurrentUser())}
+        onLoginSuccess={async () => setUser(await getCurrentUser())}
       />
 
       <div className="mx-auto max-w-6xl px-6 py-10">

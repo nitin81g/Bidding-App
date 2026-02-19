@@ -104,8 +104,12 @@ export default function ListItemPage() {
   const [walletBalance, setWalletBalance] = useState(0);
 
   useEffect(() => {
-    setUser(getCurrentUser());
-    setWalletBalance(getBalance(getCurrentUserId()));
+    async function load() {
+      setUser(await getCurrentUser());
+      const uid = await getCurrentUserId();
+      setWalletBalance(await getBalance(uid));
+    }
+    load();
   }, []);
 
   function updateField(field: keyof ListingForm, value: string) {
@@ -154,11 +158,12 @@ export default function ListItemPage() {
     setImages((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function persistListing(status: "DRAFT" | "ACTIVE") {
+  async function persistListing(status: "DRAFT" | "ACTIVE") {
     const now = new Date().toISOString();
-    saveListing({
+    const uid = await getCurrentUserId();
+    await saveListing({
       id: listingId,
-      seller_id: getCurrentUserId(),
+      seller_id: uid,
       title: form.title,
       description: form.description,
       category: form.category,
@@ -175,15 +180,15 @@ export default function ListItemPage() {
     });
   }
 
-  function handleSaveDraft() {
+  async function handleSaveDraft() {
     setErrors({});
-    persistListing("DRAFT");
+    await persistListing("DRAFT");
     setSavedStatus("DRAFT");
     setSuccessMessage("Listing saved as draft successfully!");
     setTimeout(() => setSuccessMessage(""), 4000);
   }
 
-  function handleSaveActivate() {
+  async function handleSaveActivate() {
     setSuccessMessage("");
     const validationErrors = validateForActivation(form, images);
     setErrors(validationErrors);
@@ -193,19 +198,19 @@ export default function ListItemPage() {
     }
 
     // Check listing fee (100 bid points)
-    const currentUserId = getCurrentUserId();
-    if (!hasEnoughPoints(currentUserId, 100)) {
-      const bal = getBalance(currentUserId);
+    const currentUserId = await getCurrentUserId();
+    if (!(await hasEnoughPoints(currentUserId, 100))) {
+      const bal = await getBalance(currentUserId);
       setErrors({
         listing_fee: `Listing an item costs 100 bid points. Your balance is ${bal} points. Please top up your wallet first.`,
       });
       return;
     }
 
-    // Save listing FIRST (before deducting points) so that if localStorage
-    // fails (e.g. quota exceeded from large images), points are not lost.
+    // Save listing FIRST (before deducting points) so that if storage
+    // fails, points are not lost.
     try {
-      persistListing("ACTIVE");
+      await persistListing("ACTIVE");
     } catch {
       setErrors({
         listing_fee:
@@ -215,13 +220,13 @@ export default function ListItemPage() {
     }
 
     // Deduct points only after listing is saved successfully
-    const debitResult = debitPoints(currentUserId, 100, `Listing fee: "${form.title}"`);
+    const debitResult = await debitPoints(currentUserId, 100, `Listing fee: "${form.title}"`);
     if (!debitResult.success) {
       setErrors({ listing_fee: debitResult.error || "Could not deduct listing fee." });
       return;
     }
 
-    setWalletBalance(getBalance(currentUserId));
+    setWalletBalance(await getBalance(currentUserId));
     setSavedStatus("ACTIVE");
     setShowActivatedPopup(true);
   }
@@ -260,8 +265,8 @@ export default function ListItemPage() {
                   {user.first_name} {user.last_name}
                 </Link>
                 <button
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
+                    await logout();
                     setUser(null);
                   }}
                   className="rounded-md border border-white/20 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10"
@@ -284,7 +289,7 @@ export default function ListItemPage() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onLoginSuccess={() => setUser(getCurrentUser())}
+        onLoginSuccess={async () => setUser(await getCurrentUser())}
       />
 
       {/* Page Content */}
