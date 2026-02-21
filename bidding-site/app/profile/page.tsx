@@ -192,7 +192,7 @@ export default function ProfilePage() {
               {/* Auth method badge */}
               <div className="mt-2">
                 <span className="inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                  {user.auth_method === "google" ? "Google Account" : "Mobile Account"}
+                  Mobile Account
                 </span>
               </div>
 
@@ -251,7 +251,7 @@ export default function ProfilePage() {
                     Email Address
                     {!email && editing && (
                       <span className="ml-2 text-xs font-normal text-foreground-muted">
-                        (Add your email to enable Google login)
+                        (optional)
                       </span>
                     )}
                   </label>

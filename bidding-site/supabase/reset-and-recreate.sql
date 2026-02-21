@@ -135,7 +135,7 @@ CREATE TABLE public.profiles (
   last_name    TEXT NOT NULL DEFAULT '',
   email        TEXT UNIQUE,
   mobile       TEXT UNIQUE,
-  auth_method  public.auth_method NOT NULL DEFAULT 'google',
+  auth_method  public.auth_method NOT NULL DEFAULT 'mobile',
   role         public.user_role NOT NULL DEFAULT 'buyer',
   is_suspended BOOLEAN NOT NULL DEFAULT FALSE,
   avatar_url   TEXT,
@@ -331,10 +331,7 @@ BEGIN
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'first_name', ''),
     COALESCE(NEW.raw_user_meta_data->>'last_name', ''),
-    CASE
-      WHEN NEW.phone IS NOT NULL THEN 'mobile'::public.auth_method
-      ELSE 'google'::public.auth_method
-    END
+    'mobile'::public.auth_method
   );
 
   INSERT INTO public.wallets (user_id, balance)

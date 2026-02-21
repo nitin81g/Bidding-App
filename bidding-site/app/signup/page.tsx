@@ -11,7 +11,6 @@ export default function SignupPage() {
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
-    email: "",
     mobile: "",
   });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -114,27 +113,10 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Email */}
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-foreground-heading">
-                Email Address
-              </label>
-              <input
-                type="email"
-                placeholder="you@gmail.com"
-                value={form.email}
-                onChange={(e) => updateField("email", e.target.value)}
-                className={inputClass("email")}
-              />
-              {errors.email && (
-                <p className="mt-1 text-xs text-accent-red">{errors.email}</p>
-              )}
-            </div>
-
             {/* Mobile */}
             <div>
               <label className="mb-1 block text-sm font-semibold text-foreground-heading">
-                Mobile Number
+                Mobile Number <span className="text-accent-red">*</span>
               </label>
               <div className="flex items-center gap-2">
                 <span className="rounded-lg border border-border bg-background-page px-3 py-3 text-sm text-foreground-muted">
@@ -157,7 +139,7 @@ export default function SignupPage() {
             </div>
 
             <p className="text-xs text-foreground-muted">
-              Either email or mobile number is required.
+              You&apos;ll use this number to log in with OTP.
             </p>
 
             {/* Submit */}

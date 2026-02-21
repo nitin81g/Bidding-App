@@ -55,75 +55,6 @@ export async function logout(): Promise<void> {
   await supabase.auth.signOut();
 }
 
-// --- Google Login ---
-// Demo mode: uses email/password auth for simplicity.
-// In production, replace with supabase.auth.signInWithOAuth({ provider: 'google' }).
-
-export interface GoogleLoginResult {
-  success: boolean;
-  user?: User;
-  error?: string;
-}
-
-export async function loginWithGoogle(email: string, name: string): Promise<GoogleLoginResult> {
-  if (!email || !email.includes("@")) {
-    return { success: false, error: "Invalid email address." };
-  }
-
-  const supabase = createClient();
-
-  // Try to sign in first (existing user)
-  const { data: signInData } = await supabase.auth.signInWithPassword({
-    email,
-    password: email, // Demo: using email as password
-  });
-
-  if (signInData?.user) {
-    const user = await getCurrentUser();
-    return { success: true, user: user || undefined };
-  }
-
-  // If sign-in failed, create a new account
-  const nameParts = name.trim().split(/\s+/);
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-    email,
-    password: email, // Demo: using email as password
-    options: {
-      data: {
-        first_name: nameParts[0] || "",
-        last_name: nameParts.slice(1).join(" ") || "",
-      },
-    },
-  });
-
-  if (signUpError) {
-    return { success: false, error: signUpError.message };
-  }
-
-  if (!signUpData.user) {
-    return { success: false, error: "Failed to create account." };
-  }
-
-  // If email confirmation is enabled, sign in immediately
-  if (!signUpData.session) {
-    await supabase.auth.signInWithPassword({ email, password: email });
-  }
-
-  // Profile is auto-created by the handle_new_user trigger.
-  // Update profile with name if the trigger didn't capture it.
-  await supabase
-    .from("profiles")
-    .update({
-      first_name: nameParts[0] || "",
-      last_name: nameParts.slice(1).join(" ") || "",
-      auth_method: "google",
-    })
-    .eq("id", signUpData.user.id);
-
-  const user = await getCurrentUser();
-  return { success: true, user: user || undefined };
-}
-
 // --- Mobile + OTP Login ---
 // Demo mode: uses localStorage for OTP simulation.
 // In production, use supabase.auth.signInWithOtp({ phone: '+91' + mobile }).
@@ -359,7 +290,6 @@ export async function updateProfile(userId: string, data: UpdateProfileData): Pr
 export interface SignupData {
   first_name: string;
   last_name: string;
-  email: string;
   mobile: string;
 }
 
@@ -375,17 +305,10 @@ export async function signup(data: SignupData): Promise<SignupResult> {
   if (!data.first_name.trim()) errors.first_name = "First name is required.";
   if (!data.last_name.trim()) errors.last_name = "Last name is required.";
 
-  if (!data.email.trim() && !data.mobile.trim()) {
-    errors.email = "Either email or mobile number is required.";
-    errors.mobile = "Either email or mobile number is required.";
-  }
-
-  if (data.email.trim() && !data.email.includes("@")) {
-    errors.email = "Please enter a valid email address.";
-  }
-
-  if (data.mobile.trim() && data.mobile.trim().length < 10) {
-    errors.mobile = "Please enter a valid mobile number.";
+  if (!data.mobile.trim()) {
+    errors.mobile = "Mobile number is required.";
+  } else if (data.mobile.trim().length < 10) {
+    errors.mobile = "Please enter a valid 10-digit mobile number.";
   }
 
   if (Object.keys(errors).length > 0) {
@@ -394,34 +317,18 @@ export async function signup(data: SignupData): Promise<SignupResult> {
 
   const supabase = createClient();
 
-  // Check for duplicates
-  if (data.email.trim()) {
-    const { data: existing } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("email", data.email.trim())
-      .single();
-    if (existing) {
-      errors.email = "This email is already registered.";
-    }
+  // Check for duplicate mobile
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("mobile", data.mobile.trim())
+    .single();
+  if (existing) {
+    return { success: false, errors: { mobile: "This mobile number is already registered." } };
   }
 
-  if (data.mobile.trim()) {
-    const { data: existing } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("mobile", data.mobile.trim())
-      .single();
-    if (existing) {
-      errors.mobile = "This mobile number is already registered.";
-    }
-  }
-
-  if (Object.keys(errors).length > 0) {
-    return { success: false, errors };
-  }
-
-  const email = data.email.trim() || `${data.mobile.trim()}@bidhub.local`;
+  // Supabase Auth requires an email — generate one from the mobile number
+  const email = `${data.mobile.trim()}@bidhub.local`;
 
   // Create auth user via Supabase Auth
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -459,14 +366,13 @@ export async function signup(data: SignupData): Promise<SignupResult> {
   }
 
   // Update profile with mobile and auth method
-  // (handle_new_user trigger creates the profile, but we need to add mobile etc.)
   const { error: updateError } = await supabase
     .from("profiles")
     .update({
       first_name: data.first_name.trim(),
       last_name: data.last_name.trim(),
-      mobile: data.mobile.trim() || null,
-      auth_method: data.email.trim() ? "google" : "mobile",
+      mobile: data.mobile.trim(),
+      auth_method: "mobile",
     })
     .eq("id", signUpData.user.id);
 
