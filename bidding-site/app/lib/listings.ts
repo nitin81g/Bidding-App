@@ -36,12 +36,12 @@ export interface Bid {
   created_at: string;
 }
 
-// Get current user ID from Supabase Auth session
+// Get current user ID from Supabase Auth session (uses localStorage, no network call)
 export async function getCurrentUserId(): Promise<string> {
   if (typeof window === "undefined") return "";
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user?.id || "";
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id || "";
 }
 
 export async function getListings(): Promise<Listing[]> {

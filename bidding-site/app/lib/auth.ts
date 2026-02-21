@@ -15,13 +15,19 @@ export interface User {
 export async function getCurrentUser(): Promise<User | null> {
   if (typeof window === "undefined") return null;
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+
+  // Use getSession() first — reads from localStorage, no network call.
+  // This keeps the user logged in across page refreshes without waiting
+  // for a server round-trip.
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
+
+  const userId = session.user.id;
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   if (!profile) return null;
@@ -40,8 +46,8 @@ export async function getCurrentUser(): Promise<User | null> {
 export async function isLoggedIn(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user !== null;
+  const { data: { session } } = await supabase.auth.getSession();
+  return session !== null;
 }
 
 export async function logout(): Promise<void> {
