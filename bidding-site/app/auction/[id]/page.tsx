@@ -53,6 +53,7 @@ export default function AuctionDetailPage() {
   useAuctionLifecycle();
 
   const [listing, setListing] = useState<Listing | null>(null);
+  const [loading, setLoading] = useState(true);
   const [bids, setBids] = useState<Bid[]>([]);
   const [bidAmount, setBidAmount] = useState("");
   const [showBidInput, setShowBidInput] = useState(false);
@@ -78,6 +79,7 @@ export default function AuctionDetailPage() {
     const l = await getListingById(listingId);
     setListing(l);
     setBids(await getBidsForListing(listingId));
+    setLoading(false);
   }, [listingId]);
 
   // Load data
@@ -94,6 +96,17 @@ export default function AuctionDetailPage() {
     setCountdown(timeLeft(listing.end_time));
     return () => clearInterval(interval);
   }, [listing?.end_time]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background-page font-sans">
+        <div className="text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="mt-3 text-sm text-foreground-muted">Loading auction...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!listing) {
     return (
